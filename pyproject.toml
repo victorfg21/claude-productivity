@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-productivity"
+version = "0.1.0"
+description = "Claude Code productivity tracker — Blade Runner 2049 TUI"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = ["textual>=0.47.0", "openpyxl>=3.1.0"]
+
+[project.scripts]
+claude-metrics = "claude_productivity.tui.app:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["claude_productivity*"]
