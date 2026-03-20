@@ -678,7 +678,7 @@ class ProjectsWidget(Static):
             self.update("\n".join(lines))
             return
 
-        mx_edits = max((pr.total_edits for pr in projects), default=1)
+        mx_edits = max(max((pr.total_edits for pr in projects), default=0), 1)
         for pr in projects:
             bar_len = max(0, int((pr.total_edits / mx_edits) * 22))
             bar = "█" * bar_len + "░" * (22 - bar_len)
