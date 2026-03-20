@@ -268,9 +268,9 @@ def get_current_session_stats() -> Optional[SessionStats]:
             hourly[int(r["hr"])] += r["cnt"]
 
         recent = conn.execute("""
-            SELECT ts, tool_name, file_path, command
+            SELECT ts, tool_name, file_path, command, agent_subtype, duration_ms
             FROM events WHERE session_id = ?
-            ORDER BY ts DESC LIMIT 12
+            ORDER BY ts DESC LIMIT 25
         """, (sid,)).fetchall()
 
         return SessionStats(

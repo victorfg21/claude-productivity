@@ -246,12 +246,21 @@ def _bar_chart(hourly: List[int]) -> str:
     rows: List[str] = []
     for level in range(height, 0, -1):
         threshold = (level / height) * mx
-        line = "  "
+        # Y-axis: show value at top and midpoint
+        if level == height:
+            y = f"{mx:>3}"
+        elif level == height // 2:
+            y = f"{mx // 2:>3}"
+        else:
+            y = "   "
+        line = f"  {y}│"
         for v in hourly:
             line += "█ " if v >= threshold else "  "
         rows.append(line.rstrip())
-    # Labels a cada 3h (cada hora = 2 chars)
-    label_line = "  "
+    # X-axis separator + zero label
+    rows.append(f"    0└{'─' * 48}")
+    # Time labels a cada 3h (cada hora = 2 chars, offset de 6 para alinhar com │)
+    label_line = "      "
     for i in range(24):
         label_line += f"{i:02d}" if i % 3 == 0 else "  "
     rows.append(label_line)
@@ -360,25 +369,28 @@ class ActivityWidget(Static):
         for e in events:
             # Normalizar: ParsedEvent ou dict
             if hasattr(e, "event_type"):
-                ev_type   = e.event_type
-                ts_raw    = str(e.ts or "")
-                tn        = e.tool_name or ""
-                fp        = e.file_path or ""
-                cmd       = e.command or ""
-                dur_ms    = e.duration_ms
-                is_err    = e.is_error
-                think_len = e.thinking_len
+                ev_type      = e.event_type
+                ts_raw       = str(e.ts or "")
+                tn           = e.tool_name or ""
+                fp           = e.file_path or ""
+                cmd          = e.command or ""
+                dur_ms       = e.duration_ms
+                is_err       = e.is_error
+                think_len    = e.thinking_len
+                agent_sub    = getattr(e, "agent_subtype", None) or ""
             else:
-                ev_type   = "tool_use"
-                ts_raw    = str(e.get("ts", "") or "")
-                tn        = e.get("tool_name", "?")
-                fp        = e.get("file_path") or ""
-                cmd       = e.get("command") or ""
-                dur_ms    = 0
-                is_err    = False
-                think_len = 0
+                ev_type      = "tool_use"
+                ts_raw       = str(e.get("ts", "") or "")
+                tn           = e.get("tool_name", "?")
+                fp           = e.get("file_path") or ""
+                cmd          = e.get("command") or ""
+                dur_ms       = e.get("duration_ms") or 0
+                is_err       = False
+                think_len    = 0
+                agent_sub    = e.get("agent_subtype") or ""
 
-            ts = ts_raw[11:19] if len(ts_raw) >= 19 else (ts_raw[:8] if len(ts_raw) >= 8 else "--:--:--")
+            # HH:MM (sem segundos para ganhar espaço para o label)
+            ts = ts_raw[11:16] if len(ts_raw) >= 16 else "--:--"
 
             # ── Thinking block ──────────────────────────────────────────
             if ev_type == "thinking":
@@ -402,16 +414,18 @@ class ActivityWidget(Static):
             else:
                 color = t["info"]
 
-            # ── Label: mostra parent/arquivo para mais contexto ──────────
+            # ── Label: arquivo com contexto ou subagente ou comando ──────
             if fp:
                 parts = [p for p in fp.split("/") if p]
                 if len(parts) >= 2:
                     raw_label = f"{parts[-2]}/{parts[-1]}"
                 else:
                     raw_label = parts[-1] if parts else fp
-                label = raw_label[:48]
+                label = raw_label[:54]
+            elif tn in ("Agent", "Task") and agent_sub:
+                label = f"[dim]{agent_sub[:52]}[/dim]"
             else:
-                label = (cmd[:46] + "…") if len(cmd) > 46 else cmd
+                label = (cmd[:52] + "…") if len(cmd) > 52 else cmd
 
             # ── Duração ──────────────────────────────────────────────────
             if dur_ms >= 60_000:
@@ -444,9 +458,9 @@ class ChartWidget(Static):
         self.update(
             f"  [bold]{_t('hourly_activity')}[/bold]"
             f"  [dim]{_t('total')}: {total}  {_t('peak')}: {peak:02d}h[/dim]\n"
-            f"  [dim]{'─' * 36}[/dim]\n\n"
+            f"  [dim]{'─' * 44}[/dim]\n\n"
             + chart + "\n\n"
-            + f"  [dim]24h[/dim]  [{t['spark_color']}]▕{spark}▏[/{t['spark_color']}]"
+            + f"      [{t['spark_color']}]▕{spark}▏[/{t['spark_color']}]  [dim]24h sparkline[/dim]"
         )
 
 
@@ -883,7 +897,7 @@ class ProductivityApp(App):
             most_recent = self._live_sessions[0]
             # Usar eventos do jsonl se a sessão corresponde ou é mais recente
             if most_recent.total_tools > 0:
-                activity_events = list(reversed(most_recent.events[-15:]))
+                activity_events = list(reversed(most_recent.events[-25:]))
 
         header = self.query_one("#header", HeaderWidget)
         header.set_project(self._session.project_name or "")
@@ -949,6 +963,21 @@ class ProductivityApp(App):
         set_language(nxt)
         # Persiste preferência
         _save_prefs({**_load_prefs(), "language": nxt})
+        # Atualiza labels das abas
+        _tab_keys = {
+            "tab-dashboard": "tab_dashboard",
+            "tab-insights":  "tab_insights",
+            "tab-history":   "tab_history",
+            "tab-projects":  "tab_projects",
+            "tab-sessions":  "tab_sessions",
+        }
+        tc = self.query_one(TabbedContent)
+        for pane_id, key in _tab_keys.items():
+            try:
+                tab = tc.get_tab(pane_id)
+                tab.label = f"  {_t(key)}  "
+            except Exception:
+                pass
         # Re-renderiza todos os widgets com o novo idioma
         self._load_db_data()
         self.query_one("#header", HeaderWidget)._update_clock()
