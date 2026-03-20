@@ -81,62 +81,78 @@ function Ensure-Property {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Inject / merge hooks
+# 5. Create .bat wrapper files (avoids cmd /c quoting hell with nested paths)
+# ---------------------------------------------------------------------------
+Write-Host "`n> Creating hook wrappers..."
+
+$HooksDir = Split-Path $HookScript
+
+# Resolve Python full path to avoid PATH issues inside cmd
+$PythonFull = (Get-Command $pythonCmd).Source
+
+@"
+@echo off
+chcp 65001 >nul 2>&1
+set CLAUDE_HOOK_EVENT=PreToolUse
+"$PythonFull" "$HookScript"
+"@ | Set-Content -Path (Join-Path $HooksDir "pre.bat")  -Encoding ASCII
+
+@"
+@echo off
+chcp 65001 >nul 2>&1
+set CLAUDE_HOOK_EVENT=PostToolUse
+"$PythonFull" "$HookScript"
+"@ | Set-Content -Path (Join-Path $HooksDir "post.bat") -Encoding ASCII
+
+@"
+@echo off
+chcp 65001 >nul 2>&1
+set CLAUDE_HOOK_EVENT=Stop
+"$PythonFull" "$HookScript"
+"@ | Set-Content -Path (Join-Path $HooksDir "stop.bat") -Encoding ASCII
+
+Write-Host "  Wrappers: pre.bat / post.bat / stop.bat"
+
+# ---------------------------------------------------------------------------
+# 6. Inject / merge hooks (using .bat paths — no quoting issues)
 # ---------------------------------------------------------------------------
 Write-Host "`n> Configuring hooks..."
 
 Ensure-Property $settings "hooks" ([PSCustomObject]@{})
 
-# PreToolUse
-$preCmd = "cmd /c `"chcp 65001 >nul 2>&1 && set CLAUDE_HOOK_EVENT=PreToolUse && python \`"$HookScript\`"`""
+$preCmd  = Join-Path $HooksDir "pre.bat"
+$postCmd = Join-Path $HooksDir "post.bat"
+$stopCmd = Join-Path $HooksDir "stop.bat"
+
 $preHook = [PSCustomObject]@{
     matcher = ".*"
-    hooks   = @(
-        [PSCustomObject]@{
-            type    = "command"
-            command = $preCmd
-        }
-    )
+    hooks   = @([PSCustomObject]@{ type = "command"; command = $preCmd })
 }
 Ensure-Property $settings.hooks "PreToolUse" @()
 $settings.hooks.PreToolUse = @($preHook)
 
-# PostToolUse
-$postCmd = "cmd /c `"chcp 65001 >nul 2>&1 && set CLAUDE_HOOK_EVENT=PostToolUse && python \`"$HookScript\`"`""
 $postHook = [PSCustomObject]@{
     matcher = ".*"
-    hooks   = @(
-        [PSCustomObject]@{
-            type    = "command"
-            command = $postCmd
-        }
-    )
+    hooks   = @([PSCustomObject]@{ type = "command"; command = $postCmd })
 }
 Ensure-Property $settings.hooks "PostToolUse" @()
 $settings.hooks.PostToolUse = @($postHook)
 
-# Stop (no matcher — matches install.sh structure)
-$stopCmd = "cmd /c `"chcp 65001 >nul 2>&1 && set CLAUDE_HOOK_EVENT=Stop && python \`"$HookScript\`"`""
 $stopHook = [PSCustomObject]@{
-    hooks = @(
-        [PSCustomObject]@{
-            type    = "command"
-            command = $stopCmd
-        }
-    )
+    hooks = @([PSCustomObject]@{ type = "command"; command = $stopCmd })
 }
 Ensure-Property $settings.hooks "Stop" @()
 $settings.hooks.Stop = @($stopHook)
 
 # ---------------------------------------------------------------------------
-# 6. Save settings.json
+# 7. Save settings.json
 # ---------------------------------------------------------------------------
 $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $SettingsFile -Encoding UTF8
 
 Write-Host "  Hooks written to $SettingsFile"
 
 # ---------------------------------------------------------------------------
-# 7. Done
+# 8. Done
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "=========================================="
