@@ -185,6 +185,7 @@ _S: dict[str, dict[str, object]] = {
     "bind_refresh":    {"pt-BR": "Refresh",     "en": "Refresh",    "es": "Refrescar"},
     "bind_export":     {"pt-BR": "Exportar .xlsx", "en": "Export .xlsx", "es": "Exportar .xlsx"},
     "bind_quit":       {"pt-BR": "Sair",        "en": "Quit",       "es": "Salir"},
+    "bind_language":   {"pt-BR": "Idioma",      "en": "Language",   "es": "Idioma"},
 
     # ── Excel (exporter.py) ───────────────────────────────────────────────
     "xl_report_title":     {

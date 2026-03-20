@@ -25,10 +25,14 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from ..analyzer import CATEGORY_ICON
 from ..claude_client import generate_insights
-from ..i18n import _t, _tl, set_language, detect_language
+from ..i18n import _t, _tl, set_language, detect_language, LANG as _LANG
+from ..prefs import load as _load_prefs, save as _save_prefs
 
-# Detecta idioma antes da definição das classes (BINDINGS são avaliados na criação da classe)
-set_language(detect_language())
+# Carrega preferências persistidas (tema e idioma) antes da definição das classes
+# (BINDINGS são avaliados no momento da criação da classe)
+_prefs = _load_prefs()
+_saved_lang = _prefs.get("language", "")
+set_language(_saved_lang if _saved_lang else detect_language())
 from ..db import (
     SessionStats, DailyStats, ProjectStats,
     get_current_session_stats, get_daily_history, get_all_project_stats,
@@ -223,7 +227,8 @@ THEMES = {
 }
 
 THEME_ORDER = list(THEMES.keys())
-_current_theme_key = "one_dark"
+_saved_theme = _prefs.get("theme", "one_dark")
+_current_theme_key = _saved_theme if _saved_theme in THEMES else "one_dark"
 
 
 def theme() -> dict:
@@ -795,15 +800,16 @@ class MultiSessionWidget(Static):
 class ProductivityApp(App):
     TITLE = "PRODUCTIVITY.SYS"
     BINDINGS = [
-        Binding("1", "tab_dashboard", _t("bind_dashboard")),
-        Binding("2", "tab_insights",  _t("bind_insights")),
-        Binding("3", "tab_history",   _t("bind_history")),
-        Binding("4", "tab_projects",  _t("bind_projects")),
-        Binding("5", "tab_sessions",  _t("bind_sessions")),
-        Binding("t", "toggle_theme",  _t("bind_theme")),
-        Binding("r", "force_refresh", _t("bind_refresh")),
-        Binding("e", "export",        _t("bind_export")),
-        Binding("q", "quit",          _t("bind_quit")),
+        Binding("1", "tab_dashboard",    _t("bind_dashboard")),
+        Binding("2", "tab_insights",     _t("bind_insights")),
+        Binding("3", "tab_history",      _t("bind_history")),
+        Binding("4", "tab_projects",     _t("bind_projects")),
+        Binding("5", "tab_sessions",     _t("bind_sessions")),
+        Binding("t", "toggle_theme",     _t("bind_theme")),
+        Binding("l", "toggle_language",  _t("bind_language")),
+        Binding("r", "force_refresh",    _t("bind_refresh")),
+        Binding("e", "export",           _t("bind_export")),
+        Binding("q", "quit",             _t("bind_quit")),
     ]
 
     def compose(self) -> ComposeResult:
@@ -837,6 +843,9 @@ class ProductivityApp(App):
         self._live_sessions: List[LiveSessionData] = []
         self._tool_durations: Dict[str, float] = {}
         self._insights_loading = False
+        # Aplica tema salvo
+        if _current_theme_key != "one_dark":
+            self.screen.add_class(THEMES[_current_theme_key]["css_class"])
         self._insights_last_refresh = 0.0
 
         self._load_db_data()
@@ -922,14 +931,25 @@ class ProductivityApp(App):
     def action_toggle_theme(self) -> None:
         global _current_theme_key
         idx = (THEME_ORDER.index(_current_theme_key) + 1) % len(THEME_ORDER)
-        # Remove classe do tema anterior
         old_class = THEMES[_current_theme_key]["css_class"]
         self.screen.remove_class(old_class)
-        # Aplica novo tema
         _current_theme_key = THEME_ORDER[idx]
         new_class = THEMES[_current_theme_key]["css_class"]
         self.screen.add_class(new_class)
-        # Re-renderiza widgets com as novas cores de markup
+        # Persiste preferência
+        _save_prefs({**_load_prefs(), "theme": _current_theme_key})
+        self._load_db_data()
+        self.query_one("#header", HeaderWidget)._update_clock()
+
+    def action_toggle_language(self) -> None:
+        import claude_productivity.i18n as _i18n
+        _LANG_CYCLE = ["pt-BR", "en", "es"]
+        cur = _i18n.LANG
+        nxt = _LANG_CYCLE[(_LANG_CYCLE.index(cur) + 1) % len(_LANG_CYCLE)] if cur in _LANG_CYCLE else "en"
+        set_language(nxt)
+        # Persiste preferência
+        _save_prefs({**_load_prefs(), "language": nxt})
+        # Re-renderiza todos os widgets com o novo idioma
         self._load_db_data()
         self.query_one("#header", HeaderWidget)._update_clock()
 
