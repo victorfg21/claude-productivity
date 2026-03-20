@@ -25,6 +25,10 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from ..analyzer import CATEGORY_ICON
 from ..claude_client import generate_insights
+from ..i18n import _t, _tl, set_language, detect_language
+
+# Detecta idioma antes da definição das classes (BINDINGS são avaliados na criação da classe)
+set_language(detect_language())
 from ..db import (
     SessionStats, DailyStats, ProjectStats,
     get_current_session_stats, get_daily_history, get_all_project_stats,
@@ -316,11 +320,11 @@ class HeaderWidget(Static):
         cursor  = "█" if datetime.now().second % 2 == 0 else " "
         project = f" · {self._project}" if self._project else ""
         if self._is_demo:
-            status = "  [bold yellow]⚠ DEMO MODE — run install.sh[/bold yellow]"
+            status = f"  [bold yellow]⚠ {_t('demo_mode')}[/bold yellow]"
         elif self._is_active:
-            status = "  [bold green]● LIVE[/bold green]"
+            status = f"  [bold green]● {_t('live')}[/bold green]"
         else:
-            status = "  [dim]○ LAST SESSION[/dim]"
+            status = f"  [dim]○ {_t('last_session')}[/dim]"
         left  = f"  ▸ PRODUCTIVITY.SYS{project}{status} {cursor}"
         right = f"  {self._clock}  ◂  {t['name']}  "
         # Strip Rich markup for length calculation
@@ -337,28 +341,36 @@ class ActivityWidget(Static):
         ICONS = {
             "Edit": "✎", "Write": "✎", "MultiEdit": "✎",
             "Bash": "▶", "Read": "◎", "Grep": "◎", "Glob": "◎",
-            "Agent": "◈", "WebFetch": "⊕", "WebSearch": "⊕",
+            "Agent": "◈", "Task": "◈", "WebFetch": "⊕", "WebSearch": "⊕",
+            "SendMessage": "⇢",
         }
-        lines = [f"  [bold]ATIVIDADE RECENTE[/bold]\n  [dim]{'─' * 36}[/dim]\n"]
+        TOOL_SHORT = {
+            "Edit": "Edit", "Write": "Write", "MultiEdit": "MEdit",
+            "Bash": "Bash", "Read": "Read", "Grep": "Grep", "Glob": "Glob",
+            "Agent": "Agent", "Task": "Task",
+            "WebFetch": "Fetch", "WebSearch": "Search",
+            "SendMessage": "Msg",
+        }
+        lines = [f"  [bold]{_t('recent_activity')}[/bold]\n  [dim]{'─' * 54}[/dim]\n"]
         for e in events:
             # Normalizar: ParsedEvent ou dict
             if hasattr(e, "event_type"):
-                ev_type  = e.event_type
-                ts_raw   = str(e.ts or "")
-                tn       = e.tool_name or ""
-                fp       = e.file_path or ""
-                cmd      = e.command or ""
-                dur_ms   = e.duration_ms
-                is_err   = e.is_error
+                ev_type   = e.event_type
+                ts_raw    = str(e.ts or "")
+                tn        = e.tool_name or ""
+                fp        = e.file_path or ""
+                cmd       = e.command or ""
+                dur_ms    = e.duration_ms
+                is_err    = e.is_error
                 think_len = e.thinking_len
             else:
-                ev_type  = "tool_use"
-                ts_raw   = str(e.get("ts", "") or "")
-                tn       = e.get("tool_name", "?")
-                fp       = e.get("file_path") or ""
-                cmd      = e.get("command") or ""
-                dur_ms   = 0
-                is_err   = False
+                ev_type   = "tool_use"
+                ts_raw    = str(e.get("ts", "") or "")
+                tn        = e.get("tool_name", "?")
+                fp        = e.get("file_path") or ""
+                cmd       = e.get("command") or ""
+                dur_ms    = 0
+                is_err    = False
                 think_len = 0
 
             ts = ts_raw[11:19] if len(ts_raw) >= 19 else (ts_raw[:8] if len(ts_raw) >= 8 else "--:--:--")
@@ -366,22 +378,12 @@ class ActivityWidget(Static):
             # ── Thinking block ──────────────────────────────────────────
             if ev_type == "thinking":
                 lines.append(
-                    f"  [dim]{ts}[/dim]  [{t['info']}]💭 {'Pensando':<9}[/{t['info']}]"
-                    f"  [dim]{think_len} chars[/dim]"
+                    f"  [dim]{ts}[/dim]  [{t['info']}]💭  {_t('thinking'):<12}[/{t['info']}]"
+                    f"  [dim]{think_len:,} {_t('chars')}[/dim]"
                 )
                 continue
 
-            # ── Tool use ────────────────────────────────────────────────
-            icon = ICONS.get(tn, "·")
-            if fp:
-                label = fp.split("/")[-1][:28]
-            else:
-                label = (cmd[:26] + "…") if len(cmd) > 26 else cmd
-
-            dur_str = ""
-            if dur_ms > 0:
-                dur_str = f"  [dim]{dur_ms/1000:.1f}s[/dim]" if dur_ms >= 1000 else f"  [dim]{dur_ms}ms[/dim]"
-
+            # ── Cor por tipo ─────────────────────────────────────────────
             if is_err:
                 color = t["warning"]
             elif tn in ("Edit", "Write", "MultiEdit"):
@@ -393,12 +395,36 @@ class ActivityWidget(Static):
             elif tn in ("Agent", "Task"):
                 color = t["secondary"]
             else:
-                color = "dim"
+                color = t["info"]
 
-            err_tag = f"  [{t['warning']}]✗[/{t['warning']}]" if is_err else ""
+            # ── Label: mostra parent/arquivo para mais contexto ──────────
+            if fp:
+                parts = [p for p in fp.split("/") if p]
+                if len(parts) >= 2:
+                    raw_label = f"{parts[-2]}/{parts[-1]}"
+                else:
+                    raw_label = parts[-1] if parts else fp
+                label = raw_label[:48]
+            else:
+                label = (cmd[:46] + "…") if len(cmd) > 46 else cmd
+
+            # ── Duração ──────────────────────────────────────────────────
+            if dur_ms >= 60_000:
+                dur_str = f"  [dim]{dur_ms/60000:.1f}m[/dim]"
+            elif dur_ms >= 1000:
+                dur_str = f"  [dim]{dur_ms/1000:.1f}s[/dim]"
+            elif dur_ms > 0:
+                dur_str = f"  [dim]{dur_ms}ms[/dim]"
+            else:
+                dur_str = ""
+
+            icon     = ICONS.get(tn, "·")
+            tn_short = TOOL_SHORT.get(tn, tn[:6])
+            err_tag  = f" [{t['warning']}]✗[/{t['warning']}]" if is_err else ""
+
             lines.append(
-                f"  [dim]{ts}[/dim]  [{color}]{icon} {tn:<9}[/{color}]"
-                f"  [dim]{label}[/dim]{dur_str}{err_tag}"
+                f"  [dim]{ts}[/dim]  [{color}]{icon} {tn_short:<7}[/{color}]"
+                f"  {label}{dur_str}{err_tag}"
             )
         self.update("\n".join(lines))
 
@@ -411,8 +437,8 @@ class ChartWidget(Static):
         total = sum(hourly)
         peak  = hourly.index(max(hourly)) if max(hourly) > 0 else 0
         self.update(
-            f"  [bold]ATIVIDADE HORÁRIA[/bold]"
-            f"  [dim]total: {total}  pico: {peak:02d}h[/dim]\n"
+            f"  [bold]{_t('hourly_activity')}[/bold]"
+            f"  [dim]{_t('total')}: {total}  {_t('peak')}: {peak:02d}h[/dim]\n"
             f"  [dim]{'─' * 36}[/dim]\n\n"
             + chart + "\n\n"
             + f"  [dim]24h[/dim]  [{t['spark_color']}]▕{spark}▏[/{t['spark_color']}]"
@@ -430,24 +456,24 @@ class StatsWidget(Static):
 
         # ── Resumo da sessão ──────────────────────────────────────────────
         lines = [
-            f"  [bold]SESSÃO ATUAL[/bold]",
+            f"  [bold]{_t('current_session')}[/bold]",
             f"  [dim]{'─' * 38}[/dim]",
             "",
-            f"  [dim]Duração[/dim]   [{p}]{_fmt_duration(session.duration_minutes):<10}[/{p}]"
-            f"  [dim]Tools[/dim]  [{p}]{session.total_tools}[/{p}]",
-            f"  [dim]Arquivos únicos[/dim]  [{p}]{session.unique_files}[/{p}]",
+            f"  [dim]{_t('duration')}[/dim]   [{p}]{_fmt_duration(session.duration_minutes):<10}[/{p}]"
+            f"  [dim]{_t('tools')}[/dim]  [{p}]{session.total_tools}[/{p}]",
+            f"  [dim]{_t('unique_files')}[/dim]  [{p}]{session.unique_files}[/{p}]",
             "",
         ]
 
         # ── Atividade (barras agrupadas) ──────────────────────────────────
         lines += [
-            f"  [dim]── Atividade {'─' * 26}[/dim]",
+            f"  [dim]{_t('sec_activity')} {'─' * 26}[/dim]",
             "",
-            f"  [dim]Edits   [/dim][{p}]{_pbar(session.edit_count, 80, 20)}[/{p}]"
+            f"  [dim]{_t('edits')}[/dim][{p}]{_pbar(session.edit_count, 80, 20)}[/{p}]"
             f" [{p}]{session.edit_count:>3}[/{p}] [dim]({session.edit_count * 100 // total}%)[/dim]",
-            f"  [dim]Bash    [/dim][{p}]{_pbar(session.bash_count, 80, 20)}[/{p}]"
+            f"  [dim]{_t('bash_lbl')}[/dim][{p}]{_pbar(session.bash_count, 80, 20)}[/{p}]"
             f" [{p}]{session.bash_count:>3}[/{p}] [dim]({session.bash_count * 100 // total}%)[/dim]",
-            f"  [dim]Leituras[/dim][{p}]{_pbar(session.read_count, 80, 20)}[/{p}]"
+            f"  [dim]{_t('reads')}[/dim][{p}]{_pbar(session.read_count, 80, 20)}[/{p}]"
             f" [{p}]{session.read_count:>3}[/{p}] [dim]({session.read_count * 100 // total}%)[/dim]",
         ]
 
@@ -457,13 +483,13 @@ class StatsWidget(Static):
             ok    = int(session.bash_count * rate / 100)
             fail  = session.bash_count - ok
             color = s if rate >= 80 else (w if rate < 70 else t["tip"])
-            label = "excelente" if rate >= 90 else ("atenção" if rate < 70 else "ok")
+            label = _t("excellent") if rate >= 90 else (_t("attention") if rate < 70 else _t("ok"))
             lines += [
                 "",
-                f"  [dim]── Bash Health {'─' * 24}[/dim]",
+                f"  [dim]{_t('sec_bash_health')} {'─' * 24}[/dim]",
                 "",
                 f"  [{color}]{_hbar(rate, 20)}[/{color}]"
-                f"  [{color}]{rate:.0f}%[/{color}]  [dim]{ok} ok · {fail} falha · {label}[/dim]",
+                f"  [{color}]{rate:.0f}%[/{color}]  [dim]{ok} {_t('ok')} · {fail} {_t('fail')} · {label}[/dim]",
             ]
 
         # ── Linguagens ───────────────────────────────────────────────────
@@ -471,7 +497,7 @@ class StatsWidget(Static):
             total_ext = sum(session.language_breakdown.values())
             lines += [
                 "",
-                f"  [dim]── Linguagens {'─' * 25}[/dim]",
+                f"  [dim]{_t('sec_languages')} {'─' * 25}[/dim]",
                 "",
             ]
             for ext, cnt in list(session.language_breakdown.items())[:4]:
@@ -479,39 +505,39 @@ class StatsWidget(Static):
                 bar = _lang_bar(cnt, total_ext, width=14)
                 lines.append(
                     f"  [{p}].{ext:<6}[/{p}]  [{p}]{bar}[/{p}]"
-                    f"  [dim]{cnt:>3} arqs  ({pct}%)[/dim]"
+                    f"  [dim]{cnt:>3} {_t('files_abbr')}  ({pct}%)[/dim]"
                 )
 
         # ── Foco (edit burst) ────────────────────────────────────────────
         if session.avg_edit_burst > 0:
             burst = session.avg_edit_burst
             color = s if burst >= 4.0 else (t["tip"] if burst < 1.5 else p)
-            label = "alto foco" if burst >= 4.0 else ("fragmentado" if burst < 1.5 else "moderado")
+            label = _t("high_focus") if burst >= 4.0 else (_t("fragmented") if burst < 1.5 else _t("moderate"))
             lines += [
                 "",
-                f"  [dim]── Foco de Edição {'─' * 21}[/dim]",
+                f"  [dim]{_t('sec_edit_focus')} {'─' * 21}[/dim]",
                 "",
                 f"  [{color}]{_hbar(min(100.0, burst * 20), 20)}[/{color}]"
-                f"  [{color}]{burst:.1f}[/{color}] [dim]edits consecutivos · {label}[/dim]",
+                f"  [{color}]{burst:.1f}[/{color}] [dim]{_t('consec_edits')} · {label}[/dim]",
             ]
 
         # ── Agentes ──────────────────────────────────────────────────────
         if session.agent_calls > 0:
             lines += [
                 "",
-                f"  [dim]── Subagents ({session.agent_calls} invocações) {'─' * 16}[/dim]",
+                f"  [dim]{_t('sec_subagents')} ({session.agent_calls} {_t('invocations')}) {'─' * 16}[/dim]",
                 "",
             ]
             for subtype, cnt in list(session.agent_subtype_breakdown.items())[:4]:
                 lines.append(f"  [dim]· {subtype[:34]:<34}  {cnt}×[/dim]")
             if not session.agent_subtype_breakdown:
-                lines.append(f"  [{p}]{session.agent_calls}[/{p}] [dim]chamadas sem subtipo registrado[/dim]")
+                lines.append(f"  [{p}]{session.agent_calls}[/{p}] [dim]{_t('no_subtype')}[/dim]")
 
         # ── Continuidade ─────────────────────────────────────────────────
         if session.cross_session_files:
             lines += [
                 "",
-                f"  [dim]── Continuidade (retomados de sessões anteriores) ──[/dim]",
+                f"  [dim]{_t('sec_continuity')}[/dim]",
                 "",
             ]
             for fp in session.cross_session_files[:4]:
@@ -523,7 +549,7 @@ class StatsWidget(Static):
             mx_dur = max(tool_durations.values(), default=1)
             lines += [
                 "",
-                f"  [dim]── Duração média por tool {'─' * 21}[/dim]",
+                f"  [dim]{_t('sec_avg_duration')} {'─' * 21}[/dim]",
                 "",
             ]
             for tool, avg_ms in sorted(tool_durations.items(), key=lambda x: -x[1])[:6]:
@@ -531,7 +557,7 @@ class StatsWidget(Static):
                 bar = "█" * bar_len + "░" * (16 - bar_len)
                 dur_str = f"{avg_ms/1000:.1f}s" if avg_ms >= 1000 else f"{avg_ms:.0f}ms"
                 lines.append(
-                    f"  [dim]{tool:<12}[/dim]  [{p}]{bar}[/{p}]  [{p}]{dur_str:>6}[/{p}] [dim]avg[/dim]"
+                    f"  [dim]{tool:<12}[/dim]  [{p}]{bar}[/{p}]  [{p}]{dur_str:>6}[/{p}] [dim]{_t('avg')}[/dim]"
                 )
 
         self.update("\n".join(lines))
@@ -542,10 +568,10 @@ class InsightsWidget(Static):
         t = theme()
         cursor = "█" if datetime.now().second % 2 == 0 else "░"
         self.update(
-            f"\n  [bold]INSIGHTS & RECOMENDAÇÕES[/bold]\n"
+            f"\n  [bold]{_t('insights_title')}[/bold]\n"
             f"  [dim]{'─' * 50}[/dim]\n\n"
-            f"  [{t['secondary']}]Analisando dados com Claude AI {cursor}[/{t['secondary']}]\n\n"
-            f"  [dim]Isso pode levar alguns segundos...[/dim]"
+            f"  [{t['secondary']}]{_t('analyzing')} {cursor}[/{t['secondary']}]\n\n"
+            f"  [dim]{_t('analyzing_wait')}[/dim]"
         )
 
     def update_insights(self, insights: list[dict]) -> None:
@@ -557,13 +583,13 @@ class InsightsWidget(Static):
             "info":     t["info"],
         }
         CAT_LABEL = {
-            "warning":  "ATENÇÃO",
-            "tip":      "DICA",
-            "strength": "PONTO FORTE",
-            "info":     "INFO",
+            "warning":  _t("cat_warning"),
+            "tip":      _t("cat_tip"),
+            "strength": _t("cat_strength"),
+            "info":     _t("cat_info"),
         }
         lines = [
-            f"\n  [bold]INSIGHTS & RECOMENDAÇÕES[/bold]\n"
+            f"\n  [bold]{_t('insights_title')}[/bold]\n"
             f"  [dim]{'─' * 50}[/dim]\n"
         ]
         for ins in insights:
@@ -594,7 +620,7 @@ class HistoryWidget(Static):
         p = t["secondary"]
         today = datetime.now().strftime("%Y-%m-%d")
         lines = [
-            f"\n  [bold]HISTÓRICO 7 DIAS[/bold]  [dim]meta: {DAILY_GOAL} tools/dia[/dim]",
+            f"\n  [bold]{_t('history_title')}[/bold]  [dim]{_t('goal')}: {DAILY_GOAL} {_t('tools_per_day')}[/dim]",
             f"  [dim]{'─' * 56}[/dim]\n",
         ]
         mx = max((d.total_tools for d in history), default=1)
@@ -602,13 +628,13 @@ class HistoryWidget(Static):
             is_today = d.date == today
             date_str = f"[{t['primary']}]{d.date}[/{t['primary']}]" if is_today else f"[dim]{d.date}[/dim]"
             if d.total_tools == 0:
-                lines.append(f"  {date_str}  [dim]{'─' * 20}  sem atividade[/dim]")
+                lines.append(f"  {date_str}  [dim]{'─' * 20}  {_t('no_activity')}[/dim]")
                 continue
             bar_len = max(1, int((d.total_tools / mx) * 20))
             bar = "█" * bar_len + "░" * (20 - bar_len)
             goal_ok = d.total_tools >= DAILY_GOAL
             meta = f"[{t['strength']}]✓[/{t['strength']}]" if goal_ok else f"[dim]{min(99, int(d.total_tools / DAILY_GOAL * 100)):>2}%[/dim]"
-            today_tag = f"  [{t['primary']}]◀ hoje[/{t['primary']}]" if is_today else ""
+            today_tag = f"  [{t['primary']}]◀ {_t('today')}[/{t['primary']}]" if is_today else ""
             lines.append(
                 f"  {date_str}  [{p}]{bar}[/{p}]"
                 f"  [bold]{d.total_tools:>4}[/bold] {meta}"
@@ -626,9 +652,9 @@ class HistoryWidget(Static):
                 "",
                 f"  [dim]{'─' * 56}[/dim]",
                 "",
-                f"  [dim]Média diária   [/dim][{p}]{avg_t:.0f}[/{p}] [dim]tools  (dias ativos)[/dim]",
-                f"  [dim]Tempo médio    [/dim][{p}]{_fmt_duration(avg_m)}[/{p}]",
-                f"  [dim]Meta atingida  [/dim][{p}]{goal_bar}[/{p}]  [dim]{days_hit}/{len(history)} dias[/dim]",
+                f"  [dim]{_t('daily_avg'):<15}[/dim][{p}]{avg_t:.0f}[/{p}] [dim]{_t('tools')}  ({_t('active_days')})[/dim]",
+                f"  [dim]{_t('avg_time'):<15}[/dim][{p}]{_fmt_duration(avg_m)}[/{p}]",
+                f"  [dim]{_t('goal_reached'):<15}[/dim][{p}]{goal_bar}[/{p}]  [dim]{days_hit}/{len(history)} {_t('days')}[/dim]",
             ]
         self.update("\n".join(lines))
 
@@ -638,12 +664,12 @@ class ProjectsWidget(Static):
         t = theme()
         p = t["secondary"]
         lines = [
-            f"\n  [bold]PROJETOS ({len(projects)})[/bold]",
+            f"\n  [bold]{_t('projects_title')} ({len(projects)})[/bold]",
             f"  [dim]{'─' * 56}[/dim]\n",
         ]
         if not projects:
-            lines.append("  [dim]Nenhum projeto detectado ainda.[/dim]")
-            lines.append("  [dim]Os projetos são detectados a partir dos caminhos de arquivo.[/dim]")
+            lines.append(f"  [dim]{_t('no_projects')}[/dim]")
+            lines.append(f"  [dim]{_t('no_projects_hint')}[/dim]")
             self.update("\n".join(lines))
             return
 
@@ -659,12 +685,13 @@ class ProjectsWidget(Static):
                 f"[{health_color}]bash {pr.bash_success_rate:.0f}%[/{health_color}]"
                 if pr.bash_success_rate > 0 else "[dim]bash —[/dim]"
             )
+            sess_label = _t("session_plural") if pr.total_sessions != 1 else _t("session_singular")
             lines += [
                 f"  [{p}]◈[/{p}] [bold]{pr.project_name}[/bold]"
-                f"  [dim]{pr.last_seen}  ·  {pr.total_sessions} sessão{'ões' if pr.total_sessions != 1 else ''}[/dim]",
+                f"  [dim]{pr.last_seen}  ·  {pr.total_sessions} {sess_label}[/dim]",
                 f"    [{p}]{bar}[/{p}]"
                 f"  [bold]{pr.total_edits}[/bold] [dim]edits[/dim]"
-                f"  [dim]{pr.total_bash} bash  {pr.unique_files} arqs  {_fmt_duration(pr.total_minutes)}[/dim]",
+                f"  [dim]{pr.total_bash} bash  {pr.unique_files} {_t('files_abbr')}  {_fmt_duration(pr.total_minutes)}[/dim]",
                 f"    {bash_str}  [dim]{lang_str if lang_str else '—'}[/dim]",
                 "",
             ]
@@ -684,16 +711,15 @@ class MultiSessionWidget(Static):
         inactive = [x for x in sessions if not x.is_active]
 
         lines = [
-            f"\n  [bold]SESSÕES ({len(sessions)})[/bold]"
-            f"  [dim]·  {len(active)} ativas  ·  {len(inactive)} recentes[/dim]",
+            f"\n  [bold]{_t('sessions_title')} ({len(sessions)})[/bold]"
+            f"  [dim]·  {len(active)} {_t('active')}  ·  {len(inactive)} {_t('recent')}[/dim]",
             f"  [dim]{'─' * 58}[/dim]\n",
         ]
 
         if not sessions:
             lines += [
-                f"  [dim]Nenhuma sessão ativa no momento.[/dim]",
-                f"  [dim]Sessões aparecem aqui ao abrir o Claude Code[/dim]",
-                f"  [dim]em qualquer projeto do seu sistema.[/dim]",
+                f"  [dim]{_t('no_sessions')}[/dim]",
+                f"  [dim]{_t('no_sessions_hint')}[/dim]",
             ]
             self.update("\n".join(lines))
             return
@@ -706,9 +732,9 @@ class MultiSessionWidget(Static):
                 try:
                     last = datetime.fromisoformat(sess.last_activity.replace("Z", "+00:00"))
                     delta_m = int((datetime.now().astimezone() - last).total_seconds() / 60)
-                    ago = f"{delta_m}m atrás" if delta_m < 60 else f"{delta_m // 60}h atrás"
+                    ago = f"{delta_m}m {_t('ago')}" if delta_m < 60 else f"{delta_m // 60}h {_t('ago')}"
                 except Exception:
-                    ago = "inativo"
+                    ago = _t("inactive")
                 status_str = f"[dim]○ {ago}[/dim]"
 
             ts = sess.last_activity[11:16] if len(sess.last_activity) >= 16 else "—"
@@ -733,7 +759,7 @@ class MultiSessionWidget(Static):
             lines.append(f"  [dim]  {cwd_short[:52]}[/dim]")
             lines.append(
                 f"    [{p if sess.is_active else 'dim'}]{bar}[/{p if sess.is_active else 'dim'}]"
-                f"  [bold]{sess.total_tools}[/bold] [dim]tools[/dim]"
+                f"  [bold]{sess.total_tools}[/bold] [dim]{_t('tools')}[/dim]"
                 f"  [dim]{sess.edit_count}✎  {sess.bash_count}▶  {sess.read_count}◎[/dim]"
                 f"{think_str}"
             )
@@ -742,12 +768,12 @@ class MultiSessionWidget(Static):
             if sess.subagents:
                 sa_parts = [f"[{s}]{sa.agent_type}[/{s}] [dim]({sa.tool_calls})[/dim]"
                             for sa in sess.subagents[:3]]
-                lines.append(f"    [dim]◈ subagents:[/dim] {'  '.join(sa_parts)}")
+                lines.append(f"    [dim]{_t('subagents_lbl')}[/dim] {'  '.join(sa_parts)}")
 
             # Tokens
             if sess.input_tokens > 0:
                 lines.append(
-                    f"    [dim]Tokens  ↓{tok_in} in  ↑{tok_out} out"
+                    f"    [dim]{_t('tokens')}  ↓{tok_in} in  ↑{tok_out} out"
                     f"  ⚡{tok_cac} cache[/dim]"
                     + (f"  [dim]{model_short}[/dim]" if model_short else "")
                 )
@@ -757,7 +783,7 @@ class MultiSessionWidget(Static):
             _session_card(sess)
 
         if inactive:
-            lines.append(f"  [dim]── Recentes {'─' * 45}[/dim]\n")
+            lines.append(f"  [dim]{_t('sec_recent')} {'─' * 45}[/dim]\n")
             for sess in inactive[:5]:
                 _session_card(sess)
 
@@ -769,38 +795,38 @@ class MultiSessionWidget(Static):
 class ProductivityApp(App):
     TITLE = "PRODUCTIVITY.SYS"
     BINDINGS = [
-        Binding("1", "tab_dashboard", "Dashboard"),
-        Binding("2", "tab_insights",  "Insights"),
-        Binding("3", "tab_history",   "Histórico"),
-        Binding("4", "tab_projects",  "Projetos"),
-        Binding("5", "tab_sessions",  "Sessões"),
-        Binding("t", "toggle_theme",  "Tema"),
-        Binding("r", "force_refresh", "Refresh"),
-        Binding("e", "export",        "Exportar .xlsx"),
-        Binding("q", "quit",          "Sair"),
+        Binding("1", "tab_dashboard", _t("bind_dashboard")),
+        Binding("2", "tab_insights",  _t("bind_insights")),
+        Binding("3", "tab_history",   _t("bind_history")),
+        Binding("4", "tab_projects",  _t("bind_projects")),
+        Binding("5", "tab_sessions",  _t("bind_sessions")),
+        Binding("t", "toggle_theme",  _t("bind_theme")),
+        Binding("r", "force_refresh", _t("bind_refresh")),
+        Binding("e", "export",        _t("bind_export")),
+        Binding("q", "quit",          _t("bind_quit")),
     ]
 
     def compose(self) -> ComposeResult:
         yield HeaderWidget(id="header")
         yield Footer(id="footer-bar")
         with TabbedContent(initial="tab-dashboard"):
-            with TabPane("  DASHBOARD  ", id="tab-dashboard"):
+            with TabPane(f"  {_t('tab_dashboard')}  ", id="tab-dashboard"):
                 with Horizontal(id="dashboard-layout"):
                     with Vertical(id="left-col"):
                         yield ActivityWidget(id="activity")
                     with Vertical(id="right-col"):
                         yield ChartWidget(id="chart-area")
                         yield StatsWidget(id="stats-area")
-            with TabPane("  INSIGHTS  ", id="tab-insights"):
+            with TabPane(f"  {_t('tab_insights')}  ", id="tab-insights"):
                 with ScrollableContainer(id="insights-scroll"):
                     yield InsightsWidget(id="insights-content")
-            with TabPane("  HISTÓRICO  ", id="tab-history"):
+            with TabPane(f"  {_t('tab_history')}  ", id="tab-history"):
                 with ScrollableContainer(id="history-scroll"):
                     yield HistoryWidget(id="history-content")
-            with TabPane("  PROJETOS  ", id="tab-projects"):
+            with TabPane(f"  {_t('tab_projects')}  ", id="tab-projects"):
                 with ScrollableContainer(id="projects-scroll"):
                     yield ProjectsWidget(id="projects-content")
-            with TabPane("  SESSÕES  ", id="tab-sessions"):
+            with TabPane(f"  {_t('tab_sessions')}  ", id="tab-sessions"):
                 with ScrollableContainer(id="sessions-scroll"):
                     yield MultiSessionWidget(id="sessions-content")
 
@@ -932,8 +958,8 @@ class ProductivityApp(App):
             from ..exporter import export_xlsx
         except ImportError:
             self.notify(
-                "Rode: pip install openpyxl",
-                title="openpyxl não instalado",
+                _t("openpyxl_missing"),
+                title=_t("openpyxl_title"),
                 severity="error",
                 timeout=8,
             )
@@ -946,15 +972,15 @@ class ProductivityApp(App):
         try:
             out_path = export_xlsx(session, history, projects)
             self.notify(
-                f"Arquivo salvo em:\n{out_path}",
-                title="✓ Planilha exportada",
+                f"{_t('export_saved')}\n{out_path}",
+                title=_t("export_ok_title"),
                 severity="information",
                 timeout=10,
             )
         except Exception as exc:
             self.notify(
                 str(exc)[:120],
-                title="Erro ao exportar",
+                title=_t("export_err_title"),
                 severity="error",
                 timeout=8,
             )

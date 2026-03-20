@@ -21,6 +21,7 @@ from openpyxl.styles import (
 from openpyxl.utils import get_column_letter
 
 from .db import DailyStats, ProjectStats, SessionStats
+from .i18n import _t, _tl
 
 # ── Paleta de cores (hexadecimais sem #) ────────────────────────────────────
 
@@ -98,14 +99,14 @@ def _build_resumo(ws, session: SessionStats, now: datetime) -> None:
 
     # Título principal
     ws.row_dimensions[1].height = 34
-    title = ws.cell(row=1, column=1, value="Claude Code — Relatório de Produtividade")
+    title = ws.cell(row=1, column=1, value=_t("xl_report_title"))
     title.font      = _font(bold=True, color=_C["white"], size=14)
     title.fill      = _fill(_C["header_bg"])
     title.alignment = _align("left", "center")
     ws.merge_cells("A1:D1")
 
     subtitle = ws.cell(row=1, column=5,
-                       value=f"Gerado em {now.strftime('%d/%m/%Y %H:%M')}")
+                       value=f"{_t('xl_generated')} {now.strftime('%d/%m/%Y %H:%M')}")
     subtitle.font      = _font(color=_C["dim"], size=10)
     subtitle.fill      = _fill(_C["header_bg"])
     subtitle.alignment = _align("right", "center")
@@ -114,34 +115,33 @@ def _build_resumo(ws, session: SessionStats, now: datetime) -> None:
     ws.row_dimensions[2].height = 8
 
     # Seção: Sessão Atual
-    _write_section_title(ws, 3, "SESSÃO ATUAL", 7)
+    _write_section_title(ws, 3, _t("xl_sec_current"), 7)
     ws.row_dimensions[3].height = 22
 
     RESUMO_ROWS = [
-        ("Projeto",          session.project_name or "—",        False, _C["accent"]),
-        ("Status",           "Ativa" if session.is_active else "Encerrada",
-                             True,
-                             _C["success"] if session.is_active else _C["dim"]),
-        ("Duração",          f"{int(session.duration_minutes // 60)}h {int(session.duration_minutes % 60)}m",
-                             False, _C["text"]),
-        ("Total de ações",   session.total_tools,                True, _C["accent"]),
-        ("Arquivos únicos",  session.unique_files,               False, _C["text"]),
-        ("",                 "",                                 False, _C["text"]),
-        ("Edits / Writes",   session.edit_count,                 False, _C["tip"]),
-        ("Comandos Bash",    session.bash_count,                 False, _C["text"]),
-        ("Leituras",         session.read_count,                 False, _C["text"]),
-        ("Subagents usados", session.agent_calls,                False, _C["text"]),
-        ("",                 "",                                 False, _C["text"]),
-        ("Bash — Taxa de sucesso",
+        (_t("xl_project"),       session.project_name or "—",       False, _C["accent"]),
+        (_t("xl_status"),        _t("xl_active") if session.is_active else _t("xl_ended"),
+                                 True,
+                                 _C["success"] if session.is_active else _C["dim"]),
+        (_t("xl_duration"),      f"{int(session.duration_minutes // 60)}h {int(session.duration_minutes % 60)}m",
+                                 False, _C["text"]),
+        (_t("xl_total_actions"), session.total_tools,               True, _C["accent"]),
+        (_t("xl_unique_files"),  session.unique_files,              False, _C["text"]),
+        ("",                     "",                                False, _C["text"]),
+        (_t("xl_edits_writes"),  session.edit_count,                False, _C["tip"]),
+        (_t("xl_bash_cmds"),     session.bash_count,                False, _C["text"]),
+        (_t("xl_reads"),         session.read_count,                False, _C["text"]),
+        (_t("xl_subagents"),     session.agent_calls,               False, _C["text"]),
+        ("",                     "",                                False, _C["text"]),
+        (_t("xl_bash_rate"),
          f"{session.bash_success_rate:.1f}%" if session.bash_success_rate > 0 else "—",
          True,
          _C["success"] if session.bash_success_rate >= 80
          else (_C["warning"] if 0 < session.bash_success_rate < 70 else _C["tip"])),
-        ("Burst médio de edits",
-         f"{session.avg_edit_burst:.1f} edits consecutivos" if session.avg_edit_burst > 0 else "—",
+        (_t("xl_edit_burst"),
+         f"{session.avg_edit_burst:.1f} {_t('xl_consec_edits')}" if session.avg_edit_burst > 0 else "—",
          False, _C["text"]),
-        ("Arquivos retomados (cross-session)",
-         len(session.cross_session_files), False, _C["text"]),
+        (_t("xl_cross_files"),   len(session.cross_session_files),  False, _C["text"]),
     ]
 
     for i, (label, value, bold, color) in enumerate(RESUMO_ROWS, start=4):
@@ -161,13 +161,13 @@ def _build_resumo(ws, session: SessionStats, now: datetime) -> None:
 
     # Seção: Linguagens
     r = 4 + len(RESUMO_ROWS) + 1
-    _write_section_title(ws, r, "LINGUAGENS DA SESSÃO", 7)
+    _write_section_title(ws, r, _t("xl_sec_languages"), 7)
     ws.row_dimensions[r].height = 22
     r += 1
 
     if session.language_breakdown:
         total_ext = sum(session.language_breakdown.values())
-        _write_header_row(ws, r, ["Extensão", "Arquivos editados", "% do total"], [18, 24, 16])
+        _write_header_row(ws, r, [_t("xl_extension"), _t("xl_files_edited2"), _t("xl_pct_total")], [18, 24, 16])
         r += 1
         for ext, cnt in session.language_breakdown.items():
             pct = cnt / total_ext * 100
@@ -179,7 +179,7 @@ def _build_resumo(ws, session: SessionStats, now: datetime) -> None:
             r += 1
     else:
         ws.row_dimensions[r].height = 20
-        ws.cell(row=r, column=1, value="  Nenhum dado de linguagem registrado").font = _font(color=_C["dim"])
+        ws.cell(row=r, column=1, value=f"  {_t('xl_no_lang')}").font = _font(color=_C["dim"])
 
     # Colunas
     ws.column_dimensions["A"].width = 22
@@ -200,7 +200,7 @@ def _build_historico(ws, history: List[DailyStats]) -> None:
     ws.sheet_view.showGridLines = False
 
     ws.row_dimensions[1].height = 34
-    title = ws.cell(row=1, column=1, value="Histórico de Atividade — Últimos 7 Dias")
+    title = ws.cell(row=1, column=1, value=_t("xl_hist_title"))
     title.font      = _font(bold=True, color=_C["white"], size=14)
     title.fill      = _fill(_C["header_bg"])
     title.alignment = _align("left", "center")
@@ -208,14 +208,14 @@ def _build_historico(ws, history: List[DailyStats]) -> None:
 
     ws.row_dimensions[2].height = 8
 
-    COLS  = ["Data", "Dia da Semana", "Total de Ações", "Edits / Writes",
-             "Comandos Bash", "Leituras", "Arquivos Únicos", "Tempo Ativo"]
+    COLS  = [_t("xl_date"), _t("xl_weekday"), _t("xl_total_actions2"), _t("xl_edits_writes"),
+             _t("xl_bash_cmds"), _t("xl_reads"), _t("xl_unique_files2"), _t("xl_active_time")]
     WIDTHS = [18, 20, 22, 22, 20, 16, 20, 18]
     _write_header_row(ws, 3, COLS, WIDTHS)
     ws.freeze_panes = "A4"
 
     today = datetime.now().strftime("%Y-%m-%d")
-    DAYS_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    DAYS_PT = _tl("day_names")
 
     for i, d in enumerate(history, start=4):
         ws.row_dimensions[i].height = 20
@@ -255,7 +255,7 @@ def _build_historico(ws, history: List[DailyStats]) -> None:
         r = 4 + len(history) + 1
         ws.row_dimensions[r].height = 6
         r += 1
-        _write_section_title(ws, r, "MÉDIAS (dias com atividade)", 8)
+        _write_section_title(ws, r, _t("xl_avgs_section"), 8)
         r += 1
 
         avg_tools = sum(d.total_tools for d in active_days) / len(active_days)
@@ -265,11 +265,11 @@ def _build_historico(ws, history: List[DailyStats]) -> None:
         avg_time  = f"{int(avg_mins) // 60}h {int(avg_mins) % 60:02d}m"
 
         summary = [
-            ("Média de ações/dia",  f"{avg_tools:.0f}",  _C["accent"]),
-            ("Média de edits/dia",  f"{avg_edits:.0f}",  _C["tip"]),
-            ("Média de bash/dia",   f"{avg_bash:.0f}",   _C["text"]),
-            ("Tempo médio/dia",     avg_time,             _C["text"]),
-            ("Dias ativos",         f"{len(active_days)}/{len(history)}", _C["success"]),
+            (_t("xl_avg_actions"),  f"{avg_tools:.0f}",  _C["accent"]),
+            (_t("xl_avg_edits"),    f"{avg_edits:.0f}",  _C["tip"]),
+            (_t("xl_avg_bash"),     f"{avg_bash:.0f}",   _C["text"]),
+            (_t("xl_avg_time"),     avg_time,             _C["text"]),
+            (_t("xl_active_days"),  f"{len(active_days)}/{len(history)}", _C["success"]),
         ]
         for label, val, color in summary:
             ws.row_dimensions[r].height = 20
@@ -293,7 +293,7 @@ def _build_projetos(ws, projects: List[ProjectStats]) -> None:
     ws.sheet_view.showGridLines = False
 
     ws.row_dimensions[1].height = 34
-    title = ws.cell(row=1, column=1, value="Métricas por Projeto")
+    title = ws.cell(row=1, column=1, value=_t("xl_proj_title"))
     title.font      = _font(bold=True, color=_C["white"], size=14)
     title.fill      = _fill(_C["header_bg"])
     title.alignment = _align("left", "center")
@@ -301,9 +301,9 @@ def _build_projetos(ws, projects: List[ProjectStats]) -> None:
 
     ws.row_dimensions[2].height = 8
 
-    COLS   = ["Projeto", "Último uso", "Sessões", "Edits / Writes",
-              "Comandos Bash", "Arquivos Únicos", "Tempo Total",
-              "Bash Sucesso", "Linguagens Principais", "Leituras"]
+    COLS   = [_t("xl_project"), _t("xl_last_seen"), _t("xl_sessions"), _t("xl_edits_writes"),
+              _t("xl_bash_cmds"), _t("xl_unique_files2"), _t("xl_total_time"),
+              _t("xl_bash_success"), _t("xl_main_langs"), _t("xl_reads")]
     WIDTHS = [30, 18, 12, 20, 20, 20, 18, 16, 34, 14]
     _write_header_row(ws, 3, COLS, WIDTHS)
     ws.freeze_panes = "A4"
@@ -348,7 +348,7 @@ def _build_linguagens(ws, projects: List[ProjectStats]) -> None:
     ws.sheet_view.showGridLines = False
 
     ws.row_dimensions[1].height = 34
-    title = ws.cell(row=1, column=1, value="Breakdown de Linguagens por Projeto")
+    title = ws.cell(row=1, column=1, value=_t("xl_lang_title"))
     title.font      = _font(bold=True, color=_C["white"], size=14)
     title.fill      = _fill(_C["header_bg"])
     title.alignment = _align("left", "center")
@@ -356,7 +356,7 @@ def _build_linguagens(ws, projects: List[ProjectStats]) -> None:
 
     ws.row_dimensions[2].height = 8
 
-    COLS   = ["Projeto", "Extensão", "Arquivos editados", "% no projeto", "Nível de uso"]
+    COLS   = [_t("xl_project"), _t("xl_extension"), _t("xl_files_edited"), _t("xl_pct_project"), _t("xl_usage_level")]
     WIDTHS = [32, 16, 24, 18, 28]
     _write_header_row(ws, 3, COLS, WIDTHS)
     ws.freeze_panes = "A4"
@@ -409,10 +409,10 @@ def export_xlsx(
     wb.remove(wb.active)
 
     # Cria as abas
-    ws_resumo    = wb.create_sheet("Resumo")
-    ws_historico = wb.create_sheet("Histórico 7 Dias")
-    ws_projetos  = wb.create_sheet("Projetos")
-    ws_lang      = wb.create_sheet("Linguagens")
+    ws_resumo    = wb.create_sheet(_t("xl_sheet_summary"))
+    ws_historico = wb.create_sheet(_t("xl_sheet_history"))
+    ws_projetos  = wb.create_sheet(_t("xl_sheet_projects"))
+    ws_lang      = wb.create_sheet(_t("xl_sheet_languages"))
 
     # Define cor de aba (tab color)
     ws_resumo.sheet_properties.tabColor    = "61AFEF"
