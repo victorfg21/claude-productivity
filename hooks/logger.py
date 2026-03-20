@@ -8,6 +8,7 @@ Recebe JSON via stdin com o payload do hook.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
@@ -15,6 +16,10 @@ import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Garante leitura de stdin em UTF-8 no Windows (cmd /c pode usar cp1252 por padrão)
+if hasattr(sys.stdin, "buffer"):
+    sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
 
 DB_PATH = Path.home() / ".claude" / "productivity.db"
 

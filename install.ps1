@@ -88,7 +88,7 @@ Write-Host "`n> Configuring hooks..."
 Ensure-Property $settings "hooks" ([PSCustomObject]@{})
 
 # PreToolUse
-$preCmd = "cmd /c `"set CLAUDE_HOOK_EVENT=PreToolUse && python \`"$HookScript\`"`""
+$preCmd = "cmd /c `"chcp 65001 >nul 2>&1 && set CLAUDE_HOOK_EVENT=PreToolUse && python \`"$HookScript\`"`""
 $preHook = [PSCustomObject]@{
     matcher = ".*"
     hooks   = @(
@@ -102,7 +102,7 @@ Ensure-Property $settings.hooks "PreToolUse" @()
 $settings.hooks.PreToolUse = @($preHook)
 
 # PostToolUse
-$postCmd = "cmd /c `"set CLAUDE_HOOK_EVENT=PostToolUse && python \`"$HookScript\`"`""
+$postCmd = "cmd /c `"chcp 65001 >nul 2>&1 && set CLAUDE_HOOK_EVENT=PostToolUse && python \`"$HookScript\`"`""
 $postHook = [PSCustomObject]@{
     matcher = ".*"
     hooks   = @(
@@ -116,7 +116,7 @@ Ensure-Property $settings.hooks "PostToolUse" @()
 $settings.hooks.PostToolUse = @($postHook)
 
 # Stop (no matcher — matches install.sh structure)
-$stopCmd = "cmd /c `"set CLAUDE_HOOK_EVENT=Stop && python \`"$HookScript\`"`""
+$stopCmd = "cmd /c `"chcp 65001 >nul 2>&1 && set CLAUDE_HOOK_EVENT=Stop && python \`"$HookScript\`"`""
 $stopHook = [PSCustomObject]@{
     hooks = @(
         [PSCustomObject]@{
