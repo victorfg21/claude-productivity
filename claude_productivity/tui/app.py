@@ -415,17 +415,19 @@ class ActivityWidget(Static):
                 color = t["info"]
 
             # ── Label: arquivo com contexto ou subagente ou comando ──────
+            from rich.markup import escape as _escape
             if fp:
                 parts = [p for p in fp.split("/") if p]
                 if len(parts) >= 2:
                     raw_label = f"{parts[-2]}/{parts[-1]}"
                 else:
                     raw_label = parts[-1] if parts else fp
-                label = raw_label[:54]
+                label = _escape(raw_label[:54])
             elif tn in ("Agent", "Task") and agent_sub:
-                label = f"[dim]{agent_sub[:52]}[/dim]"
+                label = f"[dim]{_escape(agent_sub[:52])}[/dim]"
             else:
-                label = (cmd[:52] + "…") if len(cmd) > 52 else cmd
+                raw_cmd = (cmd[:52] + "…") if len(cmd) > 52 else cmd
+                label = _escape(raw_cmd)
 
             # ── Duração ──────────────────────────────────────────────────
             if dur_ms >= 60_000:
