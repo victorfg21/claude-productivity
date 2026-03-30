@@ -187,6 +187,103 @@ _S: dict[str, dict[str, object]] = {
     "bind_quit":       {"pt-BR": "Sair",        "en": "Quit",       "es": "Salir"},
     "bind_language":   {"pt-BR": "Idioma",      "en": "Language",   "es": "Idioma"},
 
+    # ── SuggestionsWidget ─────────────────────────────────────────────────
+    "suggestions_title": {
+        "pt-BR": "SKILLS & MCPs SUGERIDOS",
+        "en":    "SUGGESTED SKILLS & MCPs",
+        "es":    "SKILLS Y MCPs SUGERIDOS",
+    },
+    "cat_suggestion":    {"pt-BR": "SUGESTÃO",    "en": "SUGGESTION",  "es": "SUGERENCIA"},
+    "sug_no_suggestions":{
+        "pt-BR": "Nenhuma sugestão disponível ainda. Use o Claude Code por alguns dias para gerar recomendações.",
+        "en":    "No suggestions yet. Use Claude Code for a few days to generate recommendations.",
+        "es":    "Sin sugerencias aún. Usa Claude Code unos días para generar recomendaciones.",
+    },
+
+    # Activation templates ({name} is replaced at render time)
+    "sug_activate_skill":{
+        "pt-BR": "Use /{name} no Claude Code",
+        "en":    "Use /{name} in Claude Code",
+        "es":    "Usa /{name} en Claude Code",
+    },
+    "sug_activate_mcp":  {
+        "pt-BR": "Adicione o MCP {name} em ~/.claude/settings.json",
+        "en":    "Add {name} MCP to ~/.claude/settings.json",
+        "es":    "Agrega el MCP {name} en ~/.claude/settings.json",
+    },
+
+    # Reason strings ({count} is replaced at render time)
+    "sug_git_reason":    {
+        "pt-BR": "{count} comandos git nos últimos 30 dias — automatize commits",
+        "en":    "{count} git commands in the last 30 days — automate your commits",
+        "es":    "{count} comandos git en los últimos 30 días — automatiza commits",
+    },
+    "sug_git_pr_reason": {
+        "pt-BR": "Git ativo — crie commit, push e PR com um único comando",
+        "en":    "Active git usage — create commit, push, and PR in one command",
+        "es":    "Git activo — crea commit, push y PR con un solo comando",
+    },
+    "sug_container_reason": {
+        "pt-BR": "{count} comandos docker/kubectl detectados",
+        "en":    "{count} docker/kubectl commands detected",
+        "es":    "{count} comandos docker/kubectl detectados",
+    },
+    "sug_node_reason":   {
+        "pt-BR": "{count} comandos npm/yarn/pnpm detectados",
+        "en":    "{count} npm/yarn/pnpm commands detected",
+        "es":    "{count} comandos npm/yarn/pnpm detectados",
+    },
+    "sug_test_reason":   {
+        "pt-BR": "{count} execuções de testes detectadas — melhore a cobertura",
+        "en":    "{count} test runs detected — improve your coverage workflow",
+        "es":    "{count} ejecuciones de tests detectadas — mejora la cobertura",
+    },
+    "sug_api_reason":    {
+        "pt-BR": "{count} chamadas curl/http detectadas — projete APIs melhores",
+        "en":    "{count} curl/http calls detected — design better APIs",
+        "es":    "{count} llamadas curl/http detectadas — diseña mejores APIs",
+    },
+    "sug_vue_reason":    {
+        "pt-BR": "{count} arquivos .vue editados nos últimos 30 dias",
+        "en":    "{count} .vue files edited in the last 30 days",
+        "es":    "{count} archivos .vue editados en los últimos 30 días",
+    },
+    "sug_react_reason":  {
+        "pt-BR": "{count} arquivos .tsx/.jsx editados nos últimos 30 dias",
+        "en":    "{count} .tsx/.jsx files edited in the last 30 days",
+        "es":    "{count} archivos .tsx/.jsx editados en los últimos 30 días",
+    },
+    "sug_dotnet_reason": {
+        "pt-BR": "{count} arquivos .cs editados nos últimos 30 dias",
+        "en":    "{count} .cs files edited in the last 30 days",
+        "es":    "{count} archivos .cs editados en los últimos 30 días",
+    },
+    "sug_nextjs_reason": {
+        "pt-BR": "Arquivo next.config detectado no projeto",
+        "en":    "next.config file detected in project",
+        "es":    "Archivo next.config detectado en el proyecto",
+    },
+    "sug_nuxt_reason":   {
+        "pt-BR": "Arquivo nuxt.config detectado no projeto",
+        "en":    "nuxt.config file detected in project",
+        "es":    "Archivo nuxt.config detectado en el proyecto",
+    },
+    "sug_django_reason": {
+        "pt-BR": "{count} referências a manage.py detectadas",
+        "en":    "{count} manage.py references detected",
+        "es":    "{count} referencias a manage.py detectadas",
+    },
+    "sug_web_reason":    {
+        "pt-BR": "{count} buscas/fetches web — acesse docs sem sair do Claude",
+        "en":    "{count} web searches/fetches — access docs without leaving Claude",
+        "es":    "{count} búsquedas web — accede a docs sin salir de Claude",
+    },
+    "sug_agent_reason":  {
+        "pt-BR": "{count} invocações de subagents — gerencie sessões com agent-deck",
+        "en":    "{count} subagent invocations — manage sessions with agent-deck",
+        "es":    "{count} invocaciones de subagentes — gestiona sesiones con agent-deck",
+    },
+
     # ── Excel (exporter.py) ───────────────────────────────────────────────
     "xl_report_title":     {
         "pt-BR": "Claude Code — Relatório de Produtividade",

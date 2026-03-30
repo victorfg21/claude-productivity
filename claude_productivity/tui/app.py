@@ -635,6 +635,38 @@ class InsightsWidget(Static):
         self.update("\n".join(lines))
 
 
+class SuggestionsWidget(Static):
+    def update_suggestions(self, suggestions: list) -> None:
+        t = theme()
+        if not suggestions:
+            self.update(
+                f"\n  [dim]{'─' * 50}[/dim]\n"
+                f"  [bold]{_t('suggestions_title')}[/bold]\n\n"
+                f"  [dim]{_t('sug_no_suggestions')}[/dim]\n"
+            )
+            return
+        lines = [
+            f"\n  [dim]{'─' * 50}[/dim]",
+            f"  [bold]{_t('suggestions_title')}[/bold]\n",
+        ]
+        for s in suggestions:
+            kind_color  = t["tip"] if s.kind == "skill" else t["info"]
+            kind_label  = "SKILL" if s.kind == "skill" else "MCP"
+            try:
+                reason = _t(s.reason_key).format(count=s.count, name=s.name)
+            except Exception:
+                reason = _t(s.reason_key)
+            try:
+                activation = _t(s.activation_key).format(name=s.name)
+            except Exception:
+                activation = _t(s.activation_key)
+            lines.append(f"  [{kind_color}]{s.icon} [{kind_label}][/{kind_color}]  [bold]{s.name}[/bold]")
+            lines.append(f"    [dim]{reason}[/dim]")
+            lines.append(f"    [{t['secondary']}]▸ {activation}[/{t['secondary']}]")
+            lines.append("")
+        self.update("\n".join(lines))
+
+
 class HistoryWidget(Static):
     def update_history(self, history: List[DailyStats]) -> None:
         t = theme()
@@ -842,6 +874,7 @@ class ProductivityApp(App):
             with TabPane(f"  {_t('tab_insights')}  ", id="tab-insights"):
                 with ScrollableContainer(id="insights-scroll"):
                     yield InsightsWidget(id="insights-content")
+                    yield SuggestionsWidget(id="suggestions-content")
             with TabPane(f"  {_t('tab_history')}  ", id="tab-history"):
                 with ScrollableContainer(id="history-scroll"):
                     yield HistoryWidget(id="history-content")
@@ -859,6 +892,7 @@ class ProductivityApp(App):
         self._live_sessions: List[LiveSessionData] = []
         self._tool_durations: Dict[str, float] = {}
         self._insights_loading = False
+        self._suggestions_last_refresh = 0.0
         # Aplica tema salvo
         if _current_theme_key != "one_dark":
             self.screen.add_class(THEMES[_current_theme_key]["css_class"])
@@ -911,6 +945,14 @@ class ProductivityApp(App):
         self.query_one("#history-content",   HistoryWidget).update_history(self._history)
         self.query_one("#projects-content",  ProjectsWidget).update_projects(self._projects)
         self.query_one("#sessions-content",  MultiSessionWidget).update_sessions(self._live_sessions)
+
+        # Sugestões de skills/MCPs: atualiza a cada 30s (dados estáveis)
+        now = time.monotonic()
+        if now - self._suggestions_last_refresh >= 30.0:
+            self._suggestions_last_refresh = now
+            from ..suggestions import detect_suggestions
+            sug = detect_suggestions()
+            self.query_one("#suggestions-content", SuggestionsWidget).update_suggestions(sug)
 
     def _maybe_refresh_insights(self) -> None:
         now = time.monotonic()
